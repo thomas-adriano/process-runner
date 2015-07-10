@@ -9,6 +9,5 @@ public interface ShellCommand {
 
     ShellCommand param(String paramName, String paramValue);
 
-    int execute(ProcessBuilder pb);
-
+    String[] getParams();
 }
