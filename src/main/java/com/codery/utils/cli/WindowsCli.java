@@ -69,8 +69,8 @@ public class WindowsCli implements ShellCli {
 
             p = pb.start();
             ret = p.waitFor();
-        } catch (IOException |InterruptedException e) {
-           throw new ShellCliException("An error ocurred while trying to execute command "+pb.command());
+        } catch (IOException | InterruptedException e) {
+            throw new ShellCliException("An error ocurred while trying to execute command " + pb.command());
         }
         return ret;
     }
@@ -82,4 +82,26 @@ public class WindowsCli implements ShellCli {
         return result;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        WindowsCli that = (WindowsCli) o;
+
+        return pb != null ? isEquals(pb, that.pb) : false;
+    }
+
+    private boolean isEquals(ProcessBuilder one, ProcessBuilder two) {
+        return one.command().equals(two.command()) &&
+                one.directory().equals(two.directory()) &&
+                one.redirectError().equals(two.redirectError()) &&
+                one.redirectInput().equals(two.redirectInput()) &&
+                one.environment().equals(two.environment());
+    }
+
+    @Override
+    public int hashCode() {
+        return pb != null ? pb.hashCode() : 0;
+    }
 }
