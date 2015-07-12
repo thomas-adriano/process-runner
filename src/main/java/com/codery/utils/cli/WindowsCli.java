@@ -1,15 +1,18 @@
 package com.codery.utils.cli;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Map;
 
 /**
  * Created by thomasadriano on 09/07/15.
  */
 public class WindowsCli implements ShellCli {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(WindowsCli.class);
     private final ProcessBuilder pb;
     private final static String[] CMD_CALL_PARAMS = new String[]{"cmd", "/c"};
 
@@ -56,23 +59,8 @@ public class WindowsCli implements ShellCli {
     }
 
     @Override
-    public int execute(ShellCommand cmd) {
-        ProcessBuilder pb = copyProcessBuilder(this.pb);
-        pb.command(ArraysUtils.concat(CMD_CALL_PARAMS, cmd.getParams()));
-        Process p = null;
-
-        int ret = -1;
-        try {
-            if (!pb.directory().exists()) {
-                Files.createDirectory(pb.directory().toPath());
-            }
-
-            p = pb.start();
-            ret = p.waitFor();
-        } catch (IOException | InterruptedException e) {
-            throw new ShellCliException("An error ocurred while trying to execute command " + pb.command());
-        }
-        return ret;
+    public FutureExecution command(ShellCommand cmd) {
+        return new WindowsCliFutureExecution(this.pb, cmd);
     }
 
     @Override
@@ -89,19 +77,79 @@ public class WindowsCli implements ShellCli {
 
         WindowsCli that = (WindowsCli) o;
 
-        return pb != null ? isEquals(pb, that.pb) : false;
+        if (this.pb == null && that.pb == null) {
+            return true;
+        }
+
+        return pb != null ? isProcessBuilderEquals(pb, that.pb) : false;
     }
 
-    private boolean isEquals(ProcessBuilder one, ProcessBuilder two) {
-        return one.command().equals(two.command()) &&
-                one.directory().equals(two.directory()) &&
-                one.redirectError().equals(two.redirectError()) &&
-                one.redirectInput().equals(two.redirectInput()) &&
-                one.environment().equals(two.environment());
+    private boolean isProcessBuilderEquals(ProcessBuilder one, ProcessBuilder two) {
+        return (one.command() != null ? one.command().equals(two.command()) : one.command() == two.command()) &&
+                (one.directory() != null ? one.directory().equals(two.directory()) : one.directory() == two.directory()) &&
+                (one.redirectError() != null ? one.redirectError().equals(two.redirectError()) : one.redirectError() == two.redirectError()) &&
+                (one.redirectInput() != null ? one.redirectInput().equals(two.redirectInput()) : one.redirectInput() == two.redirectInput()) &&
+                (one.environment() != null ? one.environment().equals(two.environment()) : one.environment() == two.environment());
     }
 
     @Override
     public int hashCode() {
         return pb != null ? pb.hashCode() : 0;
     }
+
+    private class WindowsCliFutureExecution implements FutureExecution {
+
+        private final ProcessBuilder innerPb;
+        private final ShellCommand cmd;
+
+        WindowsCliFutureExecution(ProcessBuilder innerPb, ShellCommand cmd) {
+            this.innerPb = innerPb;
+            this.cmd = cmd;
+        }
+
+
+        @Override
+        public int execute() {
+            ProcessBuilder pb = copyProcessBuilder(this.innerPb);
+            pb.command(ArraysUtils.concat(CMD_CALL_PARAMS, cmd.getCmdLine()));
+            Process p = null;
+
+            int ret = -1;
+            try {
+                if (!pb.directory().exists()) {
+                    LOGGER.info("Directory \"" + pb.directory() + "\" don't exist and will be created.");
+                    Files.createDirectory(pb.directory().toPath());
+                }
+
+                LOGGER.info("Running command \"" + pb.command() + "\" in directory \"" + pb.directory() + "\"");
+                p = pb.start();
+                ret = p.waitFor();
+            } catch (IOException | InterruptedException e) {
+                throw new ShellCliException("An error ocurred while trying to execute command \"" + pb.command() + "\" in directory \"" + pb.directory() + "\"");
+            }
+            return ret;
+        }
+
+
+        @Override
+        public FutureExecution pipe(ShellCommand cmd) {
+            return new WindowsCliFutureExecution(innerPb, createNextCmdLine("|", cmd));
+        }
+
+        @Override
+        public FutureExecution background(ShellCommand cmd) {
+            return new WindowsCliFutureExecution(innerPb, createNextCmdLine("&&", cmd));
+        }
+
+        private ShellCommand createNextCmdLine(String param, ShellCommand cmd) {
+            return new WindowsCommand(ArraysUtils.concat(createPrevCmdLine(param), cmd.getCmdLine()));
+        }
+
+        private String[] createPrevCmdLine(String param) {
+            return ArraysUtils.concat(innerPb.command().toArray(new String[0]), new String[]{param});
+        }
+
+
+    }
+
 }

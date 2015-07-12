@@ -16,12 +16,12 @@ public class WindowsCommand implements ShellCommand {
         params = new String[]{process};
     }
 
-    private WindowsCommand(String[] params) {
-        this.params = params;
+    public WindowsCommand(String[] cmdLine) {
+        this.params = cmdLine;
     }
 
     @Override
-    public String[] getParams() {
+    public String[] getCmdLine() {
         return params;
     }
 

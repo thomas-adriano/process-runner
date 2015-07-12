@@ -9,5 +9,5 @@ public interface ShellCommand {
 
     ShellCommand param(String paramName, String paramValue);
 
-    String[] getParams();
+    String[] getCmdLine();
 }

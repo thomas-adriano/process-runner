@@ -9,7 +9,8 @@ public interface ShellCli {
 
     ShellCli setEnvorinmentVariable(String key, String value);
 
-    int execute(ShellCommand cmd);
+    FutureExecution command(ShellCommand cmd);
 
     ShellCli dir(File dir);
 }
+
