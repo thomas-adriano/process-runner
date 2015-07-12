@@ -17,13 +17,15 @@ public class WindowsCli implements ShellCli {
     private final static String[] CMD_CALL_PARAMS = new String[]{"cmd", "/c"};
 
     public WindowsCli() {
-        this.pb = new ProcessBuilder();
+        this((File) null);
     }
 
     public WindowsCli(File dir) {
         this.pb = new ProcessBuilder();
-        pb.directory(dir);
-        pb.command("cmd", "/c");
+        if(dir != null) {
+            pb.directory(dir);
+        }
+        pb.command(CMD_CALL_PARAMS);
     }
 
     private WindowsCli(WindowsCli cli) {
@@ -60,6 +62,7 @@ public class WindowsCli implements ShellCli {
 
     @Override
     public FutureExecution command(ShellCommand cmd) {
+        this.pb.command(ArraysUtils.concat(pb.command().toArray(new String[0]), cmd.getCmdLine()));
         return new WindowsCliFutureExecution(this.pb, cmd);
     }
 
@@ -111,7 +114,6 @@ public class WindowsCli implements ShellCli {
         @Override
         public int execute() {
             ProcessBuilder pb = copyProcessBuilder(this.innerPb);
-            pb.command(ArraysUtils.concat(CMD_CALL_PARAMS, cmd.getCmdLine()));
             Process p = null;
 
             int ret = -1;
@@ -139,6 +141,11 @@ public class WindowsCli implements ShellCli {
         @Override
         public FutureExecution background(ShellCommand cmd) {
             return new WindowsCliFutureExecution(innerPb, createNextCmdLine("&&", cmd));
+        }
+
+        @Override
+        public ShellCommand getCommand() {
+            return cmd;
         }
 
         private ShellCommand createNextCmdLine(String param, ShellCommand cmd) {

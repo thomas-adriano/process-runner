@@ -13,4 +13,6 @@ public interface FutureExecution {
 
     FutureExecution background(ShellCommand cmd);
 
+    ShellCommand getCommand();
+
 }

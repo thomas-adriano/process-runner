@@ -37,7 +37,16 @@ public class ProcessExecutionTest {
     @Test
     public void fluentApiInterface_Test() {
         ShellCli cli = new WindowsCli(new File("src/test/resources"));
-        cli.command(new WindowsCommand("tasklist").param("-v").param("-a")).pipe(new WindowsCommand("findstr").param("pid")).execute();
+        ShellCommand cmd_1 = new WindowsCommand("tasklist").param("/V").param("/FO", "LIST");
+        ShellCommand cmd_2 = new WindowsCommand("findstr").param("PID");
+
+        String[] expectedCmd = new String[]{"cmd","/c","tasklist", "/V", "/FO", "LIST", "|", "findstr", "PID"};
+        String[] actualCmd = cli.command(cmd_1).pipe(cmd_2).getCommand().getCmdLine();
+
+        int ret = cli.command(cmd_1).pipe(cmd_2).execute();
+
+        assertThat(actualCmd, is(expectedCmd));
+        assertThat(ret, is(0));
     }
 
     @Test
