@@ -88,7 +88,16 @@ public class ProcessExecutionTest {
         ShellCli baseCli = new WindowsCli();
         ShellCli cli = new WindowsCli();
         ShellCli cli2 = cli.dir(new File("src/test/resources"));
-        assertThat(cli, equalTo(baseCli));
+
+        assertThat("Client should not mutate.", cli, equalTo(baseCli));
+
+        cli2 = cli.setEnvironmentVariable("home", System.getProperty("user.home"));
+
+        assertThat("Client should not mutate.", cli, equalTo(baseCli));
+
+        cli.command(new WindowsCommand("tasklist"));
+
+        assertThat("Client should not mutate.", cli, equalTo(baseCli));
     }
 
     @Test
@@ -96,7 +105,7 @@ public class ProcessExecutionTest {
         WindowsCommand baseCmd = new WindowsCommand("test");
         WindowsCommand cmd = new WindowsCommand("test");
         WindowsCommand cmd2 = cmd.param("bla").param("p", "a");
-        assertThat("Commands should not mutate", cmd, is(baseCmd));
+        assertThat("Commands should not mutate.", cmd, is(baseCmd));
     }
 
 

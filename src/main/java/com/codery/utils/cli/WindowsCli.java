@@ -45,7 +45,7 @@ public class WindowsCli implements ShellCli {
     @Override
     public ShellCli setEnvironmentVariable(String key, String value) {
         WindowsCli result = new WindowsCli(this);
-        environment.put(key, value);
+        result.environment.put(key, value);
         return result;
     }
 
@@ -57,7 +57,7 @@ public class WindowsCli implements ShellCli {
     @Override
     public WindowsCli dir(File dir) {
         WindowsCli result = new WindowsCli(this);
-        this.dir = dir;
+        result.dir = dir;
         return result;
     }
 
