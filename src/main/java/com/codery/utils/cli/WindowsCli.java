@@ -10,6 +10,7 @@ import java.nio.file.Files;
 /**
  * Created by thomasadriano on 09/07/15.
  */
+//TODO: build a "Download executable" option.
 public class WindowsCli implements ShellCli {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(WindowsCli.class);
