@@ -11,7 +11,9 @@ public interface FutureExecution {
 
     FutureExecution pipe(ShellCommand cmd);
 
-    FutureExecution background(ShellCommand cmd);
+    FutureExecution background();
+
+    FutureExecution and(ShellCommand cmd);
 
     ShellCommand getCommand();
 

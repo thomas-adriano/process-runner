@@ -35,15 +35,49 @@ public class ProcessExecutionTest {
     }
 
     @Test
-    public void fluentApiInterface_Test() {
+    public void pipeProcessTest() {
         ShellCli cli = new WindowsCli(new File("src/test/resources"));
         ShellCommand cmd_1 = new WindowsCommand("tasklist").param("/V").param("/FO", "LIST");
         ShellCommand cmd_2 = new WindowsCommand("findstr").param("PID");
+        ShellCommand cmd_3 = new WindowsCommand("findstr").param("1");
 
-        String[] expectedCmd = new String[]{"cmd","/c","tasklist", "/V", "/FO", "LIST", "|", "findstr", "PID"};
-        String[] actualCmd = cli.command(cmd_1).pipe(cmd_2).getCommand().getCmdLine();
 
-        int ret = cli.command(cmd_1).pipe(cmd_2).execute();
+        String[] expectedCmd = new String[]{"cmd","/c","tasklist", "/V", "/FO", "LIST", "|", "findstr", "PID", "|", "findstr", "1"};
+        String[] actualCmd = cli.command(cmd_1).pipe(cmd_2).pipe(cmd_3).getCommand().getCmdLine();
+
+        int ret = cli.command(cmd_1).pipe(cmd_2).pipe(cmd_3).execute();
+
+        assertThat(actualCmd, is(expectedCmd));
+        assertThat(ret, is(0));
+    }
+
+    @Test
+    public void backgroundProcessTest() {
+        ShellCli cli = new WindowsCli(new File("src/test/resources"));
+        ShellCommand cmd_1 = new WindowsCommand("tasklist").param("/V").param("/FO", "LIST");
+
+
+        String[] expectedCmd = new String[]{"cmd","/c", "start", "tasklist", "/V", "/FO", "LIST"};
+        String[] actualCmd = cli.command(cmd_1).background().getCommand().getCmdLine();
+
+        int ret = cli.command(cmd_1).background().execute();
+
+        assertThat(actualCmd, is(expectedCmd));
+        assertThat(ret, is(0));
+    }
+
+    @Test
+    public void andProcessTest() {
+        ShellCli cli = new WindowsCli(new File("src/test/resources"));
+        ShellCommand cmd_1 = new WindowsCommand("tasklist").param("/V").param("/FO", "LIST");
+        ShellCommand cmd_2 = new WindowsCommand("findstr").param("PID");
+        ShellCommand cmd_3 = new WindowsCommand("findstr").param("1");
+
+
+        String[] expectedCmd = new String[]{"cmd","/c","tasklist", "/V", "/FO", "LIST", "&", "findstr", "PID", "&", "findstr", "1"};
+        String[] actualCmd = cli.command(cmd_1).and(cmd_2).and(cmd_3).getCommand().getCmdLine();
+
+        int ret = cli.command(cmd_1).and(cmd_2).and(cmd_3).execute();
 
         assertThat(actualCmd, is(expectedCmd));
         assertThat(ret, is(0));

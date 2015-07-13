@@ -20,6 +20,9 @@ public class WindowsCommand implements ShellCommand {
         this.params = cmdLine;
     }
 
+    public WindowsCommand(WindowsCommand cmd) {
+        this.params = cmd.params;}
+
     @Override
     public String[] getCmdLine() {
         return params;
