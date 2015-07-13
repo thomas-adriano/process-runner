@@ -30,31 +30,19 @@ public class WindowsCli implements ShellCli {
 
     private WindowsCli(WindowsCli cli) {
         this.dir = cli.dir;
+        syncEnvVariables(cli.environment);
     }
 
-    private ProcessBuilder copyProcessBuilder(ProcessBuilder pb) {
-        ProcessBuilder result = new ProcessBuilder();
-        result.command(pb.command());
-        result.directory(pb.directory());
-        result.redirectError(pb.redirectError());
-        result.redirectErrorStream(pb.redirectErrorStream());
-        result.redirectInput(pb.redirectInput());
-        syncEnvVariables(pb, result);
-        return result;
-    }
-
-    private void syncEnvVariables(ProcessBuilder subject, ProcessBuilder target) {
-        for (String key : subject.environment().keySet()) {
-            String thisVal = target.environment().get(key);
-            String otherVal = subject.environment().get(key);
-            if (thisVal == null || !thisVal.equalsIgnoreCase(otherVal)) {
-                target.environment().put(key, otherVal);
-            }
+    private void syncEnvVariables(Map<String, String> that) {
+        for (String key : that.keySet()) {
+            String thisVal = this.environment.get(key);
+            String otherVal = that.get(key);
+            this.environment.put(key, otherVal);
         }
     }
 
     @Override
-    public ShellCli setEnvorinmentVariable(String key, String value) {
+    public ShellCli setEnvironmentVariable(String key, String value) {
         WindowsCli result = new WindowsCli(this);
         environment.put(key, value);
         return result;
@@ -93,15 +81,6 @@ public class WindowsCli implements ShellCli {
         result = 31 * result + (environment != null ? environment.hashCode() : 0);
         return result;
     }
-
-    private boolean isProcessBuilderEquals(ProcessBuilder one, ProcessBuilder two) {
-        return (one.command() != null ? one.command().equals(two.command()) : one.command() == two.command()) &&
-                (one.directory() != null ? one.directory().equals(two.directory()) : one.directory() == two.directory()) &&
-                (one.redirectError() != null ? one.redirectError().equals(two.redirectError()) : one.redirectError() == two.redirectError()) &&
-                (one.redirectInput() != null ? one.redirectInput().equals(two.redirectInput()) : one.redirectInput() == two.redirectInput()) &&
-                (one.environment() != null ? one.environment().equals(two.environment()) : one.environment() == two.environment());
-    }
-
 
     private class WindowsCliFutureExecution implements FutureExecution {
 
@@ -158,8 +137,8 @@ public class WindowsCli implements ShellCli {
         private WindowsCommand createBackgroundCmdLine() {
             String[] cmdArr = cmd.getCmdLine();
             String[] prefixCmdArr = new String[]{"start"};
-            if(cmd.getCmdLine()[0].equalsIgnoreCase("cmd")) {
-                cmdArr = ArraysUtils.slice(cmdArr,1);
+            if (cmd.getCmdLine()[0].equalsIgnoreCase("cmd")) {
+                cmdArr = ArraysUtils.slice(cmdArr, 1);
                 prefixCmdArr = ArraysUtils.concat(CMD_CALL_PARAMS, prefixCmdArr);
             }
             return new WindowsCommand(ArraysUtils.concat(prefixCmdArr, cmdArr));
