@@ -7,7 +7,7 @@ import java.io.File;
  */
 public interface ShellCli {
 
-    ShellCli setEnvorinmentVariable(String key, String value);
+    ShellCli setEnvironmentVariable(String key, String value);
 
     FutureExecution command(ShellCommand cmd);
 

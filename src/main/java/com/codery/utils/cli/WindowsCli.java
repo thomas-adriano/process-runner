@@ -6,6 +6,9 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Created by thomasadriano on 09/07/15.
@@ -14,60 +17,47 @@ import java.nio.file.Files;
 public class WindowsCli implements ShellCli {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(WindowsCli.class);
-    private final ProcessBuilder pb;
     private final static String[] CMD_CALL_PARAMS = new String[]{"cmd", "/c"};
+    private File dir;
+    private final Map<String, String> environment = new HashMap<>();
 
     public WindowsCli() {
-        this.pb = new ProcessBuilder();
+        this((File) null);
     }
 
     public WindowsCli(File dir) {
-        this.pb = new ProcessBuilder();
-        pb.directory(dir);
-        pb.command("cmd", "/c");
+        this.dir = dir;
     }
 
     private WindowsCli(WindowsCli cli) {
-        this.pb = copyProcessBuilder(cli.pb);
+        this.dir = cli.dir;
+        syncEnvVariables(cli.environment);
     }
 
-    private ProcessBuilder copyProcessBuilder(ProcessBuilder pb) {
-        ProcessBuilder result = new ProcessBuilder();
-        result.command(pb.command());
-        result.directory(pb.directory());
-        result.redirectError(pb.redirectError());
-        result.redirectErrorStream(pb.redirectErrorStream());
-        result.redirectInput(pb.redirectInput());
-        syncEnvVariables(pb, result);
-        return result;
-    }
-
-    private void syncEnvVariables(ProcessBuilder subject, ProcessBuilder target) {
-        for (String key : subject.environment().keySet()) {
-            String thisVal = target.environment().get(key);
-            String otherVal = subject.environment().get(key);
-            if (thisVal == null || !thisVal.equalsIgnoreCase(otherVal)) {
-                target.environment().put(key, otherVal);
-            }
+    private void syncEnvVariables(Map<String, String> that) {
+        for (String key : that.keySet()) {
+            String thisVal = this.environment.get(key);
+            String otherVal = that.get(key);
+            this.environment.put(key, otherVal);
         }
     }
 
     @Override
-    public ShellCli setEnvorinmentVariable(String key, String value) {
+    public ShellCli setEnvironmentVariable(String key, String value) {
         WindowsCli result = new WindowsCli(this);
-        result.pb.environment().put(key, value);
+        environment.put(key, value);
         return result;
     }
 
     @Override
     public FutureExecution command(ShellCommand cmd) {
-        return new WindowsCliFutureExecution(this.pb, cmd);
+        return new WindowsCliFutureExecution(new WindowsCommand(ArraysUtils.concat(CMD_CALL_PARAMS, cmd.getCmdLine())));
     }
 
     @Override
     public WindowsCli dir(File dir) {
         WindowsCli result = new WindowsCli(this);
-        result.pb.directory(dir);
+        this.dir = dir;
         return result;
     }
 
@@ -78,41 +68,34 @@ public class WindowsCli implements ShellCli {
 
         WindowsCli that = (WindowsCli) o;
 
-        if (this.pb == null && that.pb == null) {
+        if (this.dir == null && that.dir == null && this.environment.equals(that.environment)) {
             return true;
         }
 
-        return pb != null ? isProcessBuilderEquals(pb, that.pb) : false;
-    }
-
-    private boolean isProcessBuilderEquals(ProcessBuilder one, ProcessBuilder two) {
-        return (one.command() != null ? one.command().equals(two.command()) : one.command() == two.command()) &&
-                (one.directory() != null ? one.directory().equals(two.directory()) : one.directory() == two.directory()) &&
-                (one.redirectError() != null ? one.redirectError().equals(two.redirectError()) : one.redirectError() == two.redirectError()) &&
-                (one.redirectInput() != null ? one.redirectInput().equals(two.redirectInput()) : one.redirectInput() == two.redirectInput()) &&
-                (one.environment() != null ? one.environment().equals(two.environment()) : one.environment() == two.environment());
+        return (this.dir != null ? this.dir.equals(that.dir) : this.dir == that.dir) &&
+                this.environment.equals(that.environment);
     }
 
     @Override
     public int hashCode() {
-        return pb != null ? pb.hashCode() : 0;
+        int result = dir != null ? dir.hashCode() : 0;
+        result = 31 * result + (environment != null ? environment.hashCode() : 0);
+        return result;
     }
 
     private class WindowsCliFutureExecution implements FutureExecution {
 
-        private final ProcessBuilder innerPb;
         private final ShellCommand cmd;
 
-        WindowsCliFutureExecution(ProcessBuilder innerPb, ShellCommand cmd) {
-            this.innerPb = innerPb;
-            this.cmd = cmd;
+        WindowsCliFutureExecution(WindowsCommand cmd) {
+            this.cmd = new WindowsCommand(cmd.getCmdLine());
         }
 
 
         @Override
         public int execute() {
-            ProcessBuilder pb = copyProcessBuilder(this.innerPb);
-            pb.command(ArraysUtils.concat(CMD_CALL_PARAMS, cmd.getCmdLine()));
+            ProcessBuilder pb = new ProcessBuilder(cmd.getCmdLine());
+            pb.directory(dir);
             Process p = null;
 
             int ret = -1;
@@ -134,22 +117,46 @@ public class WindowsCli implements ShellCli {
 
         @Override
         public FutureExecution pipe(ShellCommand cmd) {
-            return new WindowsCliFutureExecution(innerPb, createNextCmdLine("|", cmd));
+            return new WindowsCliFutureExecution(createNextCmdLine("|", cmd));
         }
 
         @Override
-        public FutureExecution background(ShellCommand cmd) {
-            return new WindowsCliFutureExecution(innerPb, createNextCmdLine("&&", cmd));
+        public FutureExecution and(ShellCommand cmd) {
+            return new WindowsCliFutureExecution(createNextCmdLine("&", cmd));
         }
 
-        private ShellCommand createNextCmdLine(String param, ShellCommand cmd) {
+        @Override
+        public FutureExecution background() {
+            return new WindowsCliFutureExecution(createBackgroundCmdLine());
+        }
+
+        @Override
+        public ShellCommand getCommand() {
+            return cmd;
+        }
+
+        private WindowsCommand createBackgroundCmdLine() {
+            String[] cmdArr = cmd.getCmdLine();
+            String[] prefixCmdArr = new String[]{"start"};
+            if (cmd.getCmdLine()[0].equalsIgnoreCase("cmd")) {
+                cmdArr = ArraysUtils.slice(cmdArr, 1);
+                prefixCmdArr = ArraysUtils.concat(CMD_CALL_PARAMS, prefixCmdArr);
+            }
+            return new WindowsCommand(ArraysUtils.concat(prefixCmdArr, cmdArr));
+        }
+
+        private WindowsCommand createNextCmdLine(String param, ShellCommand cmd) {
             return new WindowsCommand(ArraysUtils.concat(createPrevCmdLine(param), cmd.getCmdLine()));
         }
 
         private String[] createPrevCmdLine(String param) {
-            return ArraysUtils.concat(innerPb.command().toArray(new String[0]), new String[]{param});
+            return ArraysUtils.concat(cmd.getCmdLine(), new String[]{param});
         }
 
+        @Override
+        public String toString() {
+            return Arrays.toString(cmd.getCmdLine());
+        }
 
     }
 

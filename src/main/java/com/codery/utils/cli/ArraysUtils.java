@@ -20,4 +20,13 @@ public class ArraysUtils {
 
         return result;
     }
+
+    public static String[] slice(String[] arr, int startPos) {
+        String[] result = new String[arr.length - (startPos + 1)];
+        for (int i = startPos + 1; i < arr.length; i++) {
+            int resultIndex = i - (startPos + 1);
+            result[resultIndex] = arr[i];
+        }
+        return result;
+    }
 }
