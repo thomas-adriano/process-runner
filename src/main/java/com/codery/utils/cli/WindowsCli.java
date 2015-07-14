@@ -5,10 +5,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * Created by thomasadriano on 09/07/15.
@@ -20,26 +21,40 @@ public class WindowsCli implements ShellCli {
     private final static String[] CMD_CALL_PARAMS = new String[]{"cmd", "/c"};
     private File dir;
     private final Map<String, String> environment = new HashMap<>();
+    private final List<OutputStream> stdOutputs = new ArrayList<>();
+    private final List<OutputStream> errOutputs = new ArrayList<>();
+    private final ExecutorService executor = Executors.newFixedThreadPool(4);
+    private static final int DEFAULT_TIMEOUT = 300_000;
+    private final long timeout;
 
     public WindowsCli() {
-        this((File) null);
+        this(-1, (File) null);
+    }
+
+    public WindowsCli(long timeout) {
+        this(timeout, (File) null);
     }
 
     public WindowsCli(File dir) {
+        this(-1, dir);
+    }
+
+    public WindowsCli(long timeout, File dir) {
+        if (timeout < 0) {
+            this.timeout = DEFAULT_TIMEOUT;
+        } else {
+            this.timeout = timeout;
+        }
+
         this.dir = dir;
     }
 
     private WindowsCli(WindowsCli cli) {
         this.dir = cli.dir;
-        syncEnvVariables(cli.environment);
-    }
-
-    private void syncEnvVariables(Map<String, String> that) {
-        for (String key : that.keySet()) {
-            String thisVal = this.environment.get(key);
-            String otherVal = that.get(key);
-            this.environment.put(key, otherVal);
-        }
+        this.errOutputs.addAll(cli.errOutputs);
+        this.stdOutputs.addAll(cli.stdOutputs);
+        this.environment.putAll(cli.environment);
+        this.timeout = cli.timeout;
     }
 
     @Override
@@ -58,6 +73,20 @@ public class WindowsCli implements ShellCli {
     public WindowsCli dir(File dir) {
         WindowsCli result = new WindowsCli(this);
         result.dir = dir;
+        return result;
+    }
+
+    public WindowsCli addStandardOutputConsumer(OutputStream dest) {
+        WindowsCli result = new WindowsCli(this);
+        result.stdOutputs.addAll(this.stdOutputs);
+        result.stdOutputs.add(dest);
+        return result;
+    }
+
+    public WindowsCli addErrorOutputConsumer(OutputStream dest) {
+        WindowsCli result = new WindowsCli(this);
+        result.errOutputs.addAll(this.errOutputs);
+        result.errOutputs.add(dest);
         return result;
     }
 
@@ -94,8 +123,7 @@ public class WindowsCli implements ShellCli {
 
         @Override
         public int execute() {
-            ProcessBuilder pb = new ProcessBuilder(cmd.getCmdLine());
-            pb.directory(dir);
+            ProcessBuilder pb = setupProcessBuilder();
             Process p = null;
 
             int ret = -1;
@@ -107,13 +135,48 @@ public class WindowsCli implements ShellCli {
 
                 LOGGER.info("Running command \"" + pb.command() + "\" in directory \"" + pb.directory() + "\"");
                 p = pb.start();
-                ret = p.waitFor();
-            } catch (IOException | InterruptedException e) {
-                throw new ShellCliException("An error ocurred while trying to execute command \"" + pb.command() + "\" in directory \"" + pb.directory() + "\"");
+                startOutputStreamsWriters(p.getInputStream(), p.getErrorStream());
+                ret = waitFor(p, timeout, TimeUnit.MILLISECONDS);
+            } catch (IOException ex) {
+                throw new ShellCliException("An error ocurred while trying to execute command \"" + pb.command() + "\" in directory \"" + pb.directory() + "\"", ex);
+            } finally {
+                executor.shutdown();
             }
             return ret;
         }
 
+        private int waitFor(Process p, long timeout, TimeUnit unit) {
+            long startTime = System.nanoTime();
+            long rem = unit.toNanos(timeout);
+
+            do {
+                try {
+                    return p.exitValue();
+                } catch (IllegalThreadStateException ex) {
+                    if (rem > 0)
+                        try {
+                            Thread.sleep(
+                                    Math.min(TimeUnit.NANOSECONDS.toMillis(rem) + 1, 100));
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                }
+                rem = unit.toNanos(timeout) - (System.nanoTime() - startTime);
+            } while (rem > 0);
+            return -1;
+        }
+
+        private ProcessBuilder setupProcessBuilder() {
+            ProcessBuilder pb = new ProcessBuilder(cmd.getCmdLine());
+            pb.environment().putAll(environment);
+            pb.directory(dir);
+            return pb;
+        }
+
+        private void startOutputStreamsWriters(InputStream stdStream, InputStream errStream) {
+            executor.submit(new InputStreamReader(stdStream, stdOutputs));
+            executor.submit(new InputStreamReader(errStream, errOutputs));
+        }
 
         @Override
         public FutureExecution pipe(ShellCommand cmd) {
@@ -158,6 +221,30 @@ public class WindowsCli implements ShellCli {
             return Arrays.toString(cmd.getCmdLine());
         }
 
+    }
+
+    private static final class InputStreamReader implements Runnable {
+
+        private final List<OutputStream> outStreams;
+        private final InputStream inStream;
+
+        public InputStreamReader(InputStream inStream, List<OutputStream> outStreams) {
+            this.inStream = inStream;
+            this.outStreams = outStreams;
+        }
+
+        @Override
+        public void run() {
+            for (OutputStream out : outStreams) {
+                byte[] buffer = new byte[1024];
+                try {
+                    inStream.read(buffer);
+                    out.write(buffer);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
 }
