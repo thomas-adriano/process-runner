@@ -18,14 +18,15 @@ import java.util.concurrent.*;
 public class WindowsCli implements ShellCli {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(WindowsCli.class);
-    private final static String[] CMD_CALL_PARAMS = new String[]{"cmd", "/c"};
-    private File dir;
-    private final Map<String, String> environment = new HashMap<>();
+    private static final String[] CMD_CALL_PARAMS = new String[]{"cmd", "/c"};
+    private static final long DEFAULT_TIMEOUT = 300_000; //5 min
+    public static final long MAX_TIMEOUT = Long.MAX_VALUE;
+    private final long timeout;
+    private final ExecutorService executor = Executors.newFixedThreadPool(4);
     private final List<OutputStream> stdOutputs = new ArrayList<>();
     private final List<OutputStream> errOutputs = new ArrayList<>();
-    private final ExecutorService executor = Executors.newFixedThreadPool(4);
-    private static final int DEFAULT_TIMEOUT = 300_000;
-    private final long timeout;
+    private final Map<String, String> environment = new HashMap<>();
+    private File dir;
 
     public WindowsCli() {
         this(-1, (File) null);
@@ -65,6 +66,18 @@ public class WindowsCli implements ShellCli {
     }
 
     @Override
+    public WindowsCli setEnvironmentVariables(Map<String, String> vars) {
+        WindowsCli result = new WindowsCli(this);
+        result.environment.putAll(vars);
+        return result;
+    }
+
+    @Override
+    public Map<String, String> getEnvironentVariables() {
+        return Collections.unmodifiableMap(this.environment);
+    }
+
+    @Override
     public FutureExecution command(ShellCommand cmd) {
         return new WindowsCliFutureExecution(new WindowsCommand(ArraysUtils.concat(CMD_CALL_PARAMS, cmd.getCmdLine())));
     }
@@ -76,16 +89,16 @@ public class WindowsCli implements ShellCli {
         return result;
     }
 
-    public WindowsCli addStandardOutputConsumer(OutputStream dest) {
+    @Override
+    public WindowsCli addStandardOutput(OutputStream dest) {
         WindowsCli result = new WindowsCli(this);
-        result.stdOutputs.addAll(this.stdOutputs);
         result.stdOutputs.add(dest);
         return result;
     }
 
-    public WindowsCli addErrorOutputConsumer(OutputStream dest) {
+    @Override
+    public WindowsCli addErrorOutput(OutputStream dest) {
         WindowsCli result = new WindowsCli(this);
-        result.errOutputs.addAll(this.errOutputs);
         result.errOutputs.add(dest);
         return result;
     }
@@ -136,9 +149,13 @@ public class WindowsCli implements ShellCli {
                 LOGGER.info("Running command \"" + pb.command() + "\" in directory \"" + pb.directory() + "\"");
                 p = pb.start();
                 startOutputStreamsWriters(p.getInputStream(), p.getErrorStream());
-                ret = waitFor(p, timeout, TimeUnit.MILLISECONDS);
-            } catch (IOException ex) {
-                throw new ShellCliException("An error ocurred while trying to execute command \"" + pb.command() + "\" in directory \"" + pb.directory() + "\"", ex);
+                if (timeout == MAX_TIMEOUT) {
+                    ret = p.waitFor();
+                } else {
+                    ret = waitFor(p, timeout, TimeUnit.MILLISECONDS);
+                }
+            } catch (IOException | InterruptedException | ShellCliException ex) {
+                throw new ShellCliException("An error occurred while trying to execute command \"" + pb.command() + "\" in directory \"" + pb.directory() + "\"", ex);
             } finally {
                 executor.shutdown();
             }
@@ -158,7 +175,7 @@ public class WindowsCli implements ShellCli {
                             Thread.sleep(
                                     Math.min(TimeUnit.NANOSECONDS.toMillis(rem) + 1, 100));
                         } catch (InterruptedException e) {
-                            e.printStackTrace();
+                            throw new ShellCliException("An error ocurred verifying timeout completion", e);
                         }
                 }
                 rem = unit.toNanos(timeout) - (System.nanoTime() - startTime);
@@ -174,8 +191,12 @@ public class WindowsCli implements ShellCli {
         }
 
         private void startOutputStreamsWriters(InputStream stdStream, InputStream errStream) {
-            executor.submit(new InputStreamReader(stdStream, stdOutputs));
-            executor.submit(new InputStreamReader(errStream, errOutputs));
+            if (!stdOutputs.isEmpty()) {
+                executor.submit(new InputStreamReader(stdStream, stdOutputs));
+            }
+            if (!errOutputs.isEmpty()) {
+                executor.submit(new InputStreamReader(errStream, errOutputs));
+            }
         }
 
         @Override
@@ -235,16 +256,35 @@ public class WindowsCli implements ShellCli {
 
         @Override
         public void run() {
-            for (OutputStream out : outStreams) {
-                byte[] buffer = new byte[1024];
-                try {
-                    inStream.read(buffer);
-                    out.write(buffer);
-                } catch (IOException e) {
-                    e.printStackTrace();
+            byte[] buffer = new byte[1024];
+
+            try {
+                int endOfStream = -1;
+                while ((endOfStream = inStream.read(buffer)) != -1) {
+                    byte[] processedBuffer = trimBytes(buffer);
+                    for (OutputStream out : outStreams) {
+                        out.write(processedBuffer);
+                    }
                 }
+
+            } catch (IOException e) {
+                throw new ShellCliException("An error occurred trying to write into the output streams.", e);
             }
         }
+
+        private byte[] trimBytes(byte[] bytes) {
+            if (bytes[bytes.length - 1] != 0) {
+                return bytes;
+            }
+
+            int i = bytes.length - 1;
+            while (i >= 0 && bytes[i] == 0) {
+                --i;
+            }
+
+            return Arrays.copyOf(bytes, i + 1);
+        }
+
     }
 
 }
