@@ -18,7 +18,7 @@ import java.util.concurrent.*;
 public class WindowsCli implements ShellCli {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(WindowsCli.class);
-    private static final String[] CMD_CALL_PARAMS = new String[]{"cmd", "/c"};
+    private static final String[] CMD_CALL_PARAMS = new String[] { "cmd", "/c" };
     private static final long DEFAULT_TIMEOUT = 300_000; //5 min
     public static final long MAX_TIMEOUT = Long.MAX_VALUE;
     private final long timeout;
@@ -114,8 +114,7 @@ public class WindowsCli implements ShellCli {
             return true;
         }
 
-        return (this.dir != null ? this.dir.equals(that.dir) : this.dir == that.dir) &&
-                this.environment.equals(that.environment);
+        return (this.dir != null ? this.dir.equals(that.dir) : this.dir == that.dir) && this.environment.equals(that.environment);
     }
 
     @Override
@@ -132,7 +131,6 @@ public class WindowsCli implements ShellCli {
         WindowsCliFutureExecution(WindowsCommand cmd) {
             this.cmd = new WindowsCommand(cmd.getCmdLine());
         }
-
 
         @Override
         public int execute() {
@@ -170,13 +168,11 @@ public class WindowsCli implements ShellCli {
                 try {
                     return p.exitValue();
                 } catch (IllegalThreadStateException ex) {
-                    if (rem > 0)
-                        try {
-                            Thread.sleep(
-                                    Math.min(TimeUnit.NANOSECONDS.toMillis(rem) + 1, 100));
-                        } catch (InterruptedException e) {
-                            throw new ShellCliException("An error ocurred verifying timeout completion", e);
-                        }
+                    if (rem > 0) try {
+                        Thread.sleep(Math.min(TimeUnit.NANOSECONDS.toMillis(rem) + 1, 100));
+                    } catch (InterruptedException e) {
+                        throw new ShellCliException("An error ocurred verifying timeout completion", e);
+                    }
                 }
                 rem = unit.toNanos(timeout) - (System.nanoTime() - startTime);
             } while (rem > 0);
@@ -221,7 +217,7 @@ public class WindowsCli implements ShellCli {
 
         private WindowsCommand createBackgroundCmdLine() {
             String[] cmdArr = cmd.getCmdLine();
-            String[] prefixCmdArr = new String[]{"start"};
+            String[] prefixCmdArr = new String[] { "start" };
             if (cmd.getCmdLine()[0].equalsIgnoreCase("cmd")) {
                 cmdArr = ArraysUtils.slice(cmdArr, 1);
                 prefixCmdArr = ArraysUtils.concat(CMD_CALL_PARAMS, prefixCmdArr);
@@ -234,7 +230,7 @@ public class WindowsCli implements ShellCli {
         }
 
         private String[] createPrevCmdLine(String param) {
-            return ArraysUtils.concat(cmd.getCmdLine(), new String[]{param});
+            return ArraysUtils.concat(cmd.getCmdLine(), new String[] { param });
         }
 
         @Override
@@ -259,8 +255,7 @@ public class WindowsCli implements ShellCli {
             byte[] buffer = new byte[1024];
 
             try {
-                int endOfStream = -1;
-                while ((endOfStream = inStream.read(buffer)) != -1) {
+                while (inStream.read(buffer) != -1) {
                     byte[] processedBuffer = trimBytes(buffer);
                     for (OutputStream out : outStreams) {
                         out.write(processedBuffer);
@@ -269,6 +264,14 @@ public class WindowsCli implements ShellCli {
 
             } catch (IOException e) {
                 throw new ShellCliException("An error occurred trying to write into the output streams.", e);
+            } finally {
+                for (OutputStream out : outStreams) {
+                    try {
+                        out.close();
+                    } catch (IOException e) {
+                        throw new ShellCliException("It wasn't possible to close an outputstream.", e);
+                    }
+                }
             }
         }
 
