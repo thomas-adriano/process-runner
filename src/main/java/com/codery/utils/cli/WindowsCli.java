@@ -117,6 +117,9 @@ public class WindowsCli implements ShellCli {
 
     private void closOutputStreams(List<OutputStream> outStreams) {
         for (OutputStream out : outStreams) {
+            if (out == System.out || out == System.err) {
+                continue;
+            }
             try {
                 out.close();
             } catch (IOException e) {

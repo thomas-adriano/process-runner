@@ -5,6 +5,11 @@ package com.codery.utils.cli;
  */
 public class ShellCliException extends RuntimeException {
 
+    /**
+     * 
+     */
+    private static final long serialVersionUID = 4143975241910293146L;
+
     public ShellCliException(String msg) {
         super(msg);
     }

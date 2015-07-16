@@ -1,7 +1,5 @@
 package com.codery.utils.cli;
 
-import java.lang.reflect.Array;
-
 /**
  * Created by thomasadriano on 09/07/15.
  */
@@ -15,7 +13,7 @@ public class ArraysUtils {
         }
 
         for (int i = one.length; i < one.length + another.length; i++) {
-            result[i] = another[i-one.length];
+            result[i] = another[i - one.length];
         }
 
         return result;
