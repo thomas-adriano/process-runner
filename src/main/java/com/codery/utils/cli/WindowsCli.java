@@ -50,26 +50,16 @@ public class WindowsCli implements ShellCli {
         this.dir = dir;
     }
 
-    private WindowsCli(WindowsCli cli) {
-        this.dir = cli.dir;
-        this.errOutputs.addAll(cli.errOutputs);
-        this.stdOutputs.addAll(cli.stdOutputs);
-        this.environment.putAll(cli.environment);
-        this.timeout = cli.timeout;
-    }
-
     @Override
     public ShellCli setEnvironmentVariable(String key, String value) {
-        WindowsCli result = new WindowsCli(this);
-        result.environment.put(key, value);
-        return result;
+        this.environment.put(key, value);
+        return this;
     }
 
     @Override
     public WindowsCli setEnvironmentVariables(Map<String, String> vars) {
-        WindowsCli result = new WindowsCli(this);
-        result.environment.putAll(vars);
-        return result;
+        this.environment.putAll(vars);
+        return this;
     }
 
     @Override
@@ -78,29 +68,26 @@ public class WindowsCli implements ShellCli {
     }
 
     @Override
-    public FutureExecution command(ShellCommand cmd) {
-        return new WindowsCliFutureExecution(new WindowsCommand(ArraysUtils.concat(CMD_CALL_PARAMS, cmd.getCmdLine())));
+    public FutureExecution command(CliCommand cmd) {
+        return new WindowsCliFutureExecution(new CliCommand(ArraysUtils.concat(CMD_CALL_PARAMS, cmd.getCmdLine())));
     }
 
     @Override
     public WindowsCli dir(File dir) {
-        WindowsCli result = new WindowsCli(this);
-        result.dir = dir;
-        return result;
+        this.dir = dir;
+        return this;
     }
 
     @Override
     public WindowsCli addStandardOutput(OutputStream dest) {
-        WindowsCli result = new WindowsCli(this);
-        result.stdOutputs.add(dest);
-        return result;
+        this.stdOutputs.add(dest);
+        return this;
     }
 
     @Override
     public WindowsCli addErrorOutput(OutputStream dest) {
-        WindowsCli result = new WindowsCli(this);
-        result.errOutputs.add(dest);
-        return result;
+        this.errOutputs.add(dest);
+        return this;
     }
 
     @Override
@@ -124,12 +111,29 @@ public class WindowsCli implements ShellCli {
         return result;
     }
 
+    @Override
+    public void close() throws Exception {
+        closOutputStreams(stdOutputs);
+        closOutputStreams(errOutputs);
+        executor.shutdown();
+    }
+
+    private void closOutputStreams(List<OutputStream> outStreams) {
+        for (OutputStream out : outStreams) {
+            try {
+                out.close();
+            } catch (IOException e) {
+                throw new ShellCliException("It wasn't possible to close an outputstream.", e);
+            }
+        }
+    }
+
     private class WindowsCliFutureExecution implements FutureExecution {
 
-        private final ShellCommand cmd;
+        private final CliCommand cmd;
 
-        WindowsCliFutureExecution(WindowsCommand cmd) {
-            this.cmd = new WindowsCommand(cmd.getCmdLine());
+        WindowsCliFutureExecution(CliCommand cmd) {
+            this.cmd = new CliCommand(cmd.getCmdLine());
         }
 
         @Override
@@ -154,8 +158,6 @@ public class WindowsCli implements ShellCli {
                 }
             } catch (IOException | InterruptedException | ShellCliException ex) {
                 throw new ShellCliException("An error occurred while trying to execute command \"" + pb.command() + "\" in directory \"" + pb.directory() + "\"", ex);
-            } finally {
-                executor.shutdown();
             }
             return ret;
         }
@@ -196,12 +198,12 @@ public class WindowsCli implements ShellCli {
         }
 
         @Override
-        public FutureExecution pipe(ShellCommand cmd) {
+        public FutureExecution pipe(CliCommand cmd) {
             return new WindowsCliFutureExecution(createNextCmdLine("|", cmd));
         }
 
         @Override
-        public FutureExecution and(ShellCommand cmd) {
+        public FutureExecution and(CliCommand cmd) {
             return new WindowsCliFutureExecution(createNextCmdLine("&", cmd));
         }
 
@@ -211,22 +213,22 @@ public class WindowsCli implements ShellCli {
         }
 
         @Override
-        public ShellCommand getCommand() {
+        public CliCommand getCommand() {
             return cmd;
         }
 
-        private WindowsCommand createBackgroundCmdLine() {
+        private CliCommand createBackgroundCmdLine() {
             String[] cmdArr = cmd.getCmdLine();
             String[] prefixCmdArr = new String[] { "start" };
             if (cmd.getCmdLine()[0].equalsIgnoreCase("cmd")) {
                 cmdArr = ArraysUtils.slice(cmdArr, 1);
                 prefixCmdArr = ArraysUtils.concat(CMD_CALL_PARAMS, prefixCmdArr);
             }
-            return new WindowsCommand(ArraysUtils.concat(prefixCmdArr, cmdArr));
+            return new CliCommand(ArraysUtils.concat(prefixCmdArr, cmdArr));
         }
 
-        private WindowsCommand createNextCmdLine(String param, ShellCommand cmd) {
-            return new WindowsCommand(ArraysUtils.concat(createPrevCmdLine(param), cmd.getCmdLine()));
+        private CliCommand createNextCmdLine(String param, CliCommand cmd) {
+            return new CliCommand(ArraysUtils.concat(createPrevCmdLine(param), cmd.getCmdLine()));
         }
 
         private String[] createPrevCmdLine(String param) {
@@ -265,12 +267,16 @@ public class WindowsCli implements ShellCli {
             } catch (IOException e) {
                 throw new ShellCliException("An error occurred trying to write into the output streams.", e);
             } finally {
-                for (OutputStream out : outStreams) {
-                    try {
-                        out.close();
-                    } catch (IOException e) {
-                        throw new ShellCliException("It wasn't possible to close an outputstream.", e);
-                    }
+                flushOutputStreams();
+            }
+        }
+
+        private void flushOutputStreams() {
+            for (OutputStream out : outStreams) {
+                try {
+                    out.flush();
+                } catch (IOException e) {
+                    throw new ShellCliException("It wasn't possible to flush an outputstream.", e);
                 }
             }
         }

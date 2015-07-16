@@ -7,7 +7,7 @@ import java.util.Map;
 /**
  * Created by thomasadriano on 09/07/15.
  */
-public interface ShellCli {
+public interface ShellCli extends AutoCloseable {
 
     ShellCli setEnvironmentVariable(String key, String value);
 
@@ -15,7 +15,7 @@ public interface ShellCli {
 
     Map<String,String> getEnvironentVariables();
 
-    FutureExecution command(ShellCommand cmd);
+    FutureExecution command(CliCommand cmd);
 
     ShellCli dir(File dir);
 
