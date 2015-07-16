@@ -18,11 +18,11 @@ import static org.junit.Assert.assertThat;
  */
 public class ProcessExecutionTest {
 
-    private static final File TES_DIR = new File("src/test/resources/ProcessExecutionTest");
+    private static final File TEST_DIR = new File("src/test/resources/ProcessExecutionTest");
 
     @Test
     public void oneWindowsCli_ShouldSupportMultipleExecutions() throws Exception {
-        try (ShellCli cli = new WindowsCli(TES_DIR).addStandardOutput(System.out).addErrorOutput(System.err)) {
+        try (ShellCli cli = new WindowsCli(TEST_DIR).addStandardOutput(System.out).addErrorOutput(System.err)) {
             int ret_1 = cli.command(new CliCommand("tasklist").param("/?")).execute();
             int ret_2 = cli.command(new CliCommand("tasklist").param("/?")).execute();
             int ret_3 = cli.command(new CliCommand("tasklist").param("/?")).execute();
@@ -35,7 +35,7 @@ public class ProcessExecutionTest {
 
     @Test
     public void shouldReturnZero_WhenProcessIsCorrect() throws Exception {
-        try (ShellCli cli = new WindowsCli(TES_DIR)) {
+        try (ShellCli cli = new WindowsCli(TEST_DIR)) {
             CliCommand cmd = new CliCommand("tasklist").param("/?");
             int ret = cli.command(cmd).execute();
             assertThat("The command " + cmd + " should've return 0", ret, is(0));
@@ -44,7 +44,7 @@ public class ProcessExecutionTest {
 
     @Test
     public void shouldNotReturnZero_WhenProcessIsIncorrect() throws Exception {
-        try (ShellCli cli = new WindowsCli(TES_DIR)) {
+        try (ShellCli cli = new WindowsCli(TEST_DIR)) {
             CliCommand cmd = new CliCommand("tasklistr").param("/?");
             int ret = cli.command(cmd).execute();
             assertThat("The command " + cmd + "should've return 1", ret, is(1));
@@ -54,7 +54,7 @@ public class ProcessExecutionTest {
 
     @Test
     public void shouldDefineEnvironmentVariables_ByExecution() throws Exception {
-        try (ShellCli cli = new WindowsCli(TES_DIR).setEnvironmentVariable("HOME", System.getProperty("user.home"))) {
+        try (ShellCli cli = new WindowsCli(TEST_DIR).setEnvironmentVariable("HOME", System.getProperty("user.home"))) {
             String expectedVal = System.getProperty("user.home");
             String actualVal = cli.getEnvironentVariables().get("HOME");
             assertThat("Should've setted environment variables.", actualVal, is(expectedVal));
@@ -64,7 +64,7 @@ public class ProcessExecutionTest {
     @Test
     public void shouldRespectTimeout_WhenProvided() throws Exception {
         long expectedTimeout = 1000L;
-        try (ShellCli cli = new WindowsCli(expectedTimeout, TES_DIR)) {
+        try (ShellCli cli = new WindowsCli(expectedTimeout, TEST_DIR)) {
             long init = System.currentTimeMillis();
             cli.command(new CliCommand("ping").param("8.8.8.8").param("-t")).execute();
             long end = System.currentTimeMillis();
@@ -83,7 +83,7 @@ public class ProcessExecutionTest {
     @Test
     public void shouldRedirectStdOutput_WhenConfiguredSo() throws Exception {
         OutputStreamSpy spyStd = new OutputStreamSpy(System.out);
-        try (ShellCli cli = new WindowsCli(TES_DIR).addStandardOutput(spyStd)) {
+        try (ShellCli cli = new WindowsCli(TEST_DIR).addStandardOutput(spyStd)) {
             String expectedOutput = "OUTPUT TEST";
 
             CliCommand cmd = new CliCommand("echo").param(expectedOutput);
@@ -99,7 +99,7 @@ public class ProcessExecutionTest {
     @Test
     public void shouldRedirectErrOutput_WhenConfiguredSo() throws Exception {
         OutputStreamSpy spyErr = new OutputStreamSpy(System.err);
-        try (ShellCli cli = new WindowsCli(TES_DIR).addErrorOutput(spyErr)) {
+        try (ShellCli cli = new WindowsCli(TEST_DIR).addErrorOutput(spyErr)) {
             String expectedOutput = "The directory name is invalid.";
 
             CliCommand cmd = new CliCommand("mkdir").param(":s");
@@ -147,17 +147,16 @@ public class ProcessExecutionTest {
 
     @Test
     public void andProcessTest() throws Exception {
-        try (ShellCli cli = new WindowsCli(new File("src/test/resources"))) {
+        try (ShellCli cli = new WindowsCli(TEST_DIR)) {
             CliCommand cmd_1 = new CliCommand("tasklist").param("/V").param("/FO", "LIST");
-            CliCommand cmd_2 = new CliCommand("findstr").param("PID");
-            CliCommand cmd_3 = new CliCommand("findstr").param("1");
+            CliCommand cmd_2 = new CliCommand("tasklist").param("/?");
+            CliCommand cmd_3 = new CliCommand("tasklist").param("/V");
 
 
-            String[] expectedCmd = new String[]{"cmd", "/c", "tasklist", "/V", "/FO", "LIST", "&", "findstr", "PID", "&", "findstr", "1"};
+            String[] expectedCmd = new String[]{"cmd", "/c", "tasklist", "/V", "/FO", "LIST", "&", "tasklist", "/?", "&", "tasklist", "/V"};
             String[] actualCmd = cli.command(cmd_1).and(cmd_2).and(cmd_3).getCommand().getCmdLine();
 
             int ret = cli.command(cmd_1).and(cmd_2).and(cmd_3).execute();
-
             assertThat(actualCmd, is(expectedCmd));
             assertThat(ret, is(0));
         }

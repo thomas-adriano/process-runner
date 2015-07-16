@@ -3,10 +3,7 @@ package com.codery.utils.cli;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.concurrent.*;
@@ -148,7 +145,7 @@ public class WindowsCli implements ShellCli {
                     Files.createDirectory(pb.directory().toPath());
                 }
 
-                LOGGER.info("Running command \"" + pb.command() + "\" in directory \"" + pb.directory() + "\"");
+                LOGGER.info("Running command \"" + pb.command().toString().replaceAll("\\[|\\]|,", "") + "\" in directory \"" + pb.directory() + "\"");
                 p = pb.start();
                 startOutputStreamsWriters(p.getInputStream(), p.getErrorStream());
                 if (timeout == MAX_TIMEOUT) {
@@ -189,12 +186,23 @@ public class WindowsCli implements ShellCli {
         }
 
         private void startOutputStreamsWriters(InputStream stdStream, InputStream errStream) {
+            List<OutputStream> stdOutStreams = new ArrayList<>();
+            List<OutputStream> errOutStreams = new ArrayList<>();
+            // it is necessarily to read all process's inputStream from std and err or else the execution will hang.
             if (!stdOutputs.isEmpty()) {
-                executor.submit(new InputStreamReader(stdStream, stdOutputs));
+                stdOutStreams = stdOutputs;
+            } else {
+                stdOutStreams.add(new ByteArrayOutputStream());
             }
+
             if (!errOutputs.isEmpty()) {
-                executor.submit(new InputStreamReader(errStream, errOutputs));
+                errOutStreams = errOutputs;
+            } else {
+                errOutStreams.add(new ByteArrayOutputStream());
             }
+
+            executor.submit(new InputStreamReader(stdStream, stdOutStreams));
+            executor.submit(new InputStreamReader(errStream, errOutStreams));
         }
 
         @Override
