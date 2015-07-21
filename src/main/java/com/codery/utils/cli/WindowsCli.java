@@ -26,11 +26,11 @@ public class WindowsCli implements ShellCli {
     private File dir;
 
     public WindowsCli() {
-        this(-1, (File) null);
+        this(-1, new File(System.getProperty("user.dir")));
     }
 
     public WindowsCli(long timeout) {
-        this(timeout, (File) null);
+        this(timeout, new File(System.getProperty("user.dir")));
     }
 
     public WindowsCli(File dir) {
