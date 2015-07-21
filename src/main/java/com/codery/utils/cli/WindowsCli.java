@@ -48,7 +48,7 @@ public class WindowsCli implements ShellCli {
     }
 
     @Override
-    public ShellCli setEnvironmentVariable(String key, String value) {
+    public WindowsCli setEnvironmentVariable(String key, String value) {
         this.environment.put(key, value);
         return this;
     }
