@@ -184,7 +184,7 @@ public class WindowsCli implements ShellCli {
         private ProcessBuilder setupProcessBuilder() {
             ProcessBuilder pb = new ProcessBuilder(cmd.getCmdLine());
             pb.environment().putAll(environment);
-            pb.directory(dir);
+            pb = pb.directory(dir);
             return pb;
         }
 
