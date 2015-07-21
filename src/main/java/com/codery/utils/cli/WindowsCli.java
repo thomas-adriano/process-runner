@@ -143,7 +143,7 @@ public class WindowsCli implements ShellCli {
 
             int ret = -1;
             try {
-                if (!pb.directory().exists()) {
+                if (pb.directory() != null && !pb.directory().exists()) {
                     LOGGER.info("Directory \"" + pb.directory() + "\" don't exist and will be created.");
                     Files.createDirectory(pb.directory().toPath());
                 }
