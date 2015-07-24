@@ -1,29 +1,36 @@
 package com.codery.utils.cli;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
-import java.nio.file.Files;
-import java.util.*;
-import java.util.concurrent.*;
-
-/**
- * Created by thomasadriano on 09/07/15.
- */
-//TODO: build a "Download executable" option.
 public class WindowsCli implements ShellCli {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(WindowsCli.class);
     private static final String[] CMD_CALL_PARAMS = new String[] { "cmd", "/c" };
-    private static final long DEFAULT_TIMEOUT = 300_000; //5 min
+    private static final Logger LOGGER = LoggerFactory.getLogger(WindowsCli.class);
+    protected static final long DEFAULT_TIMEOUT = 300_000; //5 min
     public static final long MAX_TIMEOUT = Long.MAX_VALUE;
-    private final long timeout;
+    protected final long timeout;
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
     private final List<OutputStream> stdOutputs = new ArrayList<>();
     private final List<OutputStream> errOutputs = new ArrayList<>();
     private final Map<String, String> environment = new HashMap<>();
-    private File dir;
+    protected File dir;
 
     public WindowsCli() {
         this(-1, new File(System.getProperty("user.dir")));
@@ -49,19 +56,19 @@ public class WindowsCli implements ShellCli {
 
     @Override
     public WindowsCli setEnvironmentVariable(String key, String value) {
-        this.environment.put(key, value);
+        environment.put(key, value);
         return this;
     }
 
     @Override
     public WindowsCli setEnvironmentVariables(Map<String, String> vars) {
-        this.environment.putAll(vars);
+        environment.putAll(vars);
         return this;
     }
 
     @Override
     public Map<String, String> getEnvironentVariables() {
-        return Collections.unmodifiableMap(this.environment);
+        return Collections.unmodifiableMap(environment);
     }
 
     @Override
@@ -77,28 +84,32 @@ public class WindowsCli implements ShellCli {
 
     @Override
     public WindowsCli addStandardOutput(OutputStream dest) {
-        this.stdOutputs.add(dest);
+        stdOutputs.add(dest);
         return this;
     }
 
     @Override
     public WindowsCli addErrorOutput(OutputStream dest) {
-        this.errOutputs.add(dest);
+        errOutputs.add(dest);
         return this;
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         WindowsCli that = (WindowsCli) o;
 
-        if (this.dir == null && that.dir == null && this.environment.equals(that.environment)) {
+        if (dir == null && that.dir == null && environment.equals(that.environment)) {
             return true;
         }
 
-        return (this.dir != null ? this.dir.equals(that.dir) : this.dir == that.dir) && this.environment.equals(that.environment);
+        return (dir != null ? dir.equals(that.dir) : dir == that.dir) && environment.equals(that.environment);
     }
 
     @Override
@@ -170,10 +181,12 @@ public class WindowsCli implements ShellCli {
                 try {
                     return p.exitValue();
                 } catch (IllegalThreadStateException ex) {
-                    if (rem > 0) try {
-                        Thread.sleep(Math.min(TimeUnit.NANOSECONDS.toMillis(rem) + 1, 100));
-                    } catch (InterruptedException e) {
-                        throw new ShellCliException("An error ocurred verifying timeout completion", e);
+                    if (rem > 0) {
+                        try {
+                            Thread.sleep(Math.min(TimeUnit.NANOSECONDS.toMillis(rem) + 1, 100));
+                        } catch (InterruptedException e) {
+                            throw new ShellCliException("An error ocurred verifying timeout completion", e);
+                        }
                     }
                 }
                 rem = unit.toNanos(timeout) - (System.nanoTime() - startTime);
@@ -265,20 +278,22 @@ public class WindowsCli implements ShellCli {
 
         @Override
         public void run() {
-            byte[] buffer = new byte[1024];
-
             try {
-                while (inStream.read(buffer) != -1) {
-                    byte[] processedBuffer = trimBytes(buffer);
-                    for (OutputStream out : outStreams) {
-                        out.write(processedBuffer);
-                    }
-                }
-
+                readInputStream();
             } catch (IOException e) {
                 throw new ShellCliException("An error occurred trying to write into the output streams.", e);
             } finally {
                 flushOutputStreams();
+            }
+        }
+
+        private synchronized void readInputStream() throws IOException {
+            byte[] buffer = new byte[1024];
+            while (inStream.read(buffer) != -1) {
+                byte[] processedBuffer = trimBytes(buffer);
+                for (OutputStream out : outStreams) {
+                    out.write(processedBuffer);
+                }
             }
         }
 

@@ -1,17 +1,16 @@
 package com.codery.utils.cli;
 
-import org.junit.Test;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.core.IsEqual.equalTo;
+import static org.junit.Assert.assertThat;
 
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 
-
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.core.Is.is;
-import static org.hamcrest.core.IsEqual.equalTo;
-import static org.junit.Assert.assertThat;
+import org.junit.Test;
 
 /**
  * Created by thomasadriano on 09/07/15.
@@ -95,7 +94,6 @@ public class ProcessExecutionTest {
         }
     }
 
-
     @Test
     public void shouldRedirectErrOutput_WhenConfiguredSo() throws Exception {
         OutputStreamSpy spyErr = new OutputStreamSpy(System.err);
@@ -118,8 +116,7 @@ public class ProcessExecutionTest {
             CliCommand cmd_2 = new CliCommand("findstr").param("PID");
             CliCommand cmd_3 = new CliCommand("findstr").param("1");
 
-
-            String[] expectedCmd = new String[]{"cmd", "/c", "tasklist", "/V", "/FO", "LIST", "|", "findstr", "PID", "|", "findstr", "1"};
+            String[] expectedCmd = new String[] { "cmd", "/c", "tasklist", "/V", "/FO", "LIST", "|", "findstr", "PID", "|", "findstr", "1" };
             String[] actualCmd = cli.command(cmd_1).pipe(cmd_2).pipe(cmd_3).getCommand().getCmdLine();
 
             int ret = cli.command(cmd_1).pipe(cmd_2).pipe(cmd_3).execute();
@@ -134,8 +131,7 @@ public class ProcessExecutionTest {
         try (ShellCli cli = new WindowsCli(new File("src/test/resources"))) {
             CliCommand cmd_1 = new CliCommand("tasklist").param("/V").param("/FO", "LIST");
 
-
-            String[] expectedCmd = new String[]{"cmd", "/c", "start", "tasklist", "/V", "/FO", "LIST"};
+            String[] expectedCmd = new String[] { "cmd", "/c", "start", "tasklist", "/V", "/FO", "LIST" };
             String[] actualCmd = cli.command(cmd_1).background().getCommand().getCmdLine();
 
             int ret = cli.command(cmd_1).background().execute();
@@ -152,8 +148,7 @@ public class ProcessExecutionTest {
             CliCommand cmd_2 = new CliCommand("tasklist").param("/?");
             CliCommand cmd_3 = new CliCommand("tasklist").param("/V");
 
-
-            String[] expectedCmd = new String[]{"cmd", "/c", "tasklist", "/V", "/FO", "LIST", "&", "tasklist", "/?", "&", "tasklist", "/V"};
+            String[] expectedCmd = new String[] { "cmd", "/c", "tasklist", "/V", "/FO", "LIST", "&", "tasklist", "/?", "&", "tasklist", "/V" };
             String[] actualCmd = cli.command(cmd_1).and(cmd_2).and(cmd_3).getCommand().getCmdLine();
 
             int ret = cli.command(cmd_1).and(cmd_2).and(cmd_3).execute();
@@ -206,6 +201,5 @@ public class ProcessExecutionTest {
             return actualOutput.toString();
         }
     }
-
 
 }

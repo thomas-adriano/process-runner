@@ -19,8 +19,8 @@ public interface ShellCli extends AutoCloseable {
 
     ShellCli dir(File dir);
 
-    WindowsCli addStandardOutput(OutputStream dest);
+    ShellCli addStandardOutput(OutputStream dest);
 
-    WindowsCli addErrorOutput(OutputStream dest);
+    ShellCli addErrorOutput(OutputStream dest);
 }
 
