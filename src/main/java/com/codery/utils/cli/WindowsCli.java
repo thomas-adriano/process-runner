@@ -2,6 +2,7 @@ package com.codery.utils.cli;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -142,6 +143,7 @@ public class WindowsCli implements ShellCli {
     private class WindowsCliFutureExecution implements FutureExecution {
 
         private final CliCommand cmd;
+        private File redirectOutputTarget;
 
         WindowsCliFutureExecution(CliCommand cmd) {
             this.cmd = new CliCommand(cmd.getCmdLine());
@@ -161,7 +163,17 @@ public class WindowsCli implements ShellCli {
 
                 LOGGER.info("Running command \"" + pb.command().toString().replaceAll("\\[|\\]|,", "") + "\" in directory \"" + pb.directory() + "\"");
                 p = pb.start();
-                startOutputStreamsWriters(p.getInputStream(), p.getErrorStream());
+
+                //the default output is not used. Closing it prevents some processes from hanging (all powershell executions, for example).
+                p.getOutputStream().close();
+
+                if (redirectOutputTarget == null) {
+                    startOutputStreamsWriters(p.getInputStream(), p.getErrorStream());
+                } else {
+                    FileInputStream fis = new FileInputStream(redirectOutputTarget);
+                    startOutputStreamsWriters(fis, null);
+                }
+
                 if (timeout == MAX_TIMEOUT) {
                     ret = p.waitFor();
                 } else {
@@ -217,8 +229,26 @@ public class WindowsCli implements ShellCli {
                 errOutStreams.add(new ByteArrayOutputStream());
             }
 
-            executor.submit(new InputStreamReader(stdStream, stdOutStreams));
-            executor.submit(new InputStreamReader(errStream, errOutStreams));
+            if (stdStream != null) {
+                executor.submit(new InputStreamReader(stdStream, stdOutStreams));
+            }
+            if (errStream != null) {
+                executor.submit(new InputStreamReader(errStream, errOutStreams));
+            }
+        }
+
+        @Override
+        public FutureExecution redirectOutput(File out) {
+            WindowsCliFutureExecution ret = new WindowsCliFutureExecution(createNextCmdLine(">", out.getAbsolutePath()));
+            ret.redirectOutputTarget = out;
+            return ret;
+        }
+
+        @Override
+        public FutureExecution redirectOutputAppending(File out) {
+            WindowsCliFutureExecution ret = new WindowsCliFutureExecution(createNextCmdLine(">>", out.getAbsolutePath()));
+            ret.redirectOutputTarget = out;
+            return ret;
         }
 
         @Override
@@ -255,6 +285,10 @@ public class WindowsCli implements ShellCli {
             return new CliCommand(ArraysUtils.concat(createPrevCmdLine(param), cmd.getCmdLine()));
         }
 
+        private CliCommand createNextCmdLine(String param, String param2) {
+            return new CliCommand(ArraysUtils.concat(createPrevCmdLine(param), new String[] { param2 }));
+        }
+
         private String[] createPrevCmdLine(String param) {
             return ArraysUtils.concat(cmd.getCmdLine(), new String[] { param });
         }
@@ -284,6 +318,7 @@ public class WindowsCli implements ShellCli {
                 throw new ShellCliException("An error occurred trying to write into the output streams.", e);
             } finally {
                 flushOutputStreams();
+                closeInputStream();
             }
         }
 
@@ -304,6 +339,14 @@ public class WindowsCli implements ShellCli {
                 } catch (IOException e) {
                     throw new ShellCliException("It wasn't possible to flush an outputstream.", e);
                 }
+            }
+        }
+
+        private void closeInputStream() {
+            try {
+                inStream.close();
+            } catch (IOException e) {
+                throw new ShellCliException("It wasn't possible to close an inputstream.", e);
             }
         }
 
