@@ -18,6 +18,8 @@ public interface FutureExecution {
     FutureExecution redirectOutput(File out);
 
     FutureExecution redirectOutputAppending(File out);
+    
+    FutureExecution supressOutput();
 
     CliCommand getCommand();
 

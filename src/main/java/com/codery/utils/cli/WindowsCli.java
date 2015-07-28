@@ -32,6 +32,7 @@ public class WindowsCli implements ShellCli {
     private final List<OutputStream> errOutputs = new ArrayList<>();
     private final Map<String, String> environment = new HashMap<>();
     protected File dir;
+    private boolean isClosed;
 
     public WindowsCli() {
         this(-1, new File(System.getProperty("user.dir")));
@@ -53,6 +54,18 @@ public class WindowsCli implements ShellCli {
         }
 
         this.dir = dir;
+    }
+
+    @Override
+    public ShellCli clearStandardOutputTargets() {
+        stdOutputs.removeAll(stdOutputs);
+        return this;
+    }
+
+    @Override
+    public ShellCli clearErrorOutputTargets() {
+        errOutputs.removeAll(errOutputs);
+        return this;
     }
 
     @Override
@@ -122,9 +135,13 @@ public class WindowsCli implements ShellCli {
 
     @Override
     public void close() throws Exception {
+        if (isClosed) {
+            throw new RuntimeException("This instance of " + WindowsCli.class + " is already closed.");
+        }
         closOutputStreams(stdOutputs);
         closOutputStreams(errOutputs);
         executor.shutdown();
+        isClosed = true;
     }
 
     private void closOutputStreams(List<OutputStream> outStreams) {
@@ -144,13 +161,24 @@ public class WindowsCli implements ShellCli {
 
         private final CliCommand cmd;
         private File redirectOutputTarget;
+        private boolean supressOuput;
 
         WindowsCliFutureExecution(CliCommand cmd) {
             this.cmd = new CliCommand(cmd.getCmdLine());
         }
 
+        WindowsCliFutureExecution(WindowsCliFutureExecution futureEx) {
+            cmd = new CliCommand(futureEx.cmd);
+            redirectOutputTarget = futureEx.redirectOutputTarget;
+            supressOuput = futureEx.supressOuput;
+        }
+
         @Override
         public int execute() {
+            if (isClosed) {
+                throw new RuntimeException("It is not possible to execute a closed instance of " + WindowsCli.class);
+            }
+            
             ProcessBuilder pb = setupProcessBuilder();
             Process p = null;
 
@@ -161,7 +189,7 @@ public class WindowsCli implements ShellCli {
                     Files.createDirectory(pb.directory().toPath());
                 }
 
-                LOGGER.info("Running command \"" + pb.command().toString().replaceAll("\\[|\\]|,", "") + "\" in directory \"" + pb.directory() + "\"");
+                LOGGER.debug("Running command \"" + pb.command().toString().replaceAll("\\[|\\]|,", "") + "\" in directory \"" + pb.directory() + "\"");
                 p = pb.start();
 
                 //the default output is not used. Closing it prevents some processes from hanging (all powershell executions, for example).
@@ -217,13 +245,13 @@ public class WindowsCli implements ShellCli {
             List<OutputStream> stdOutStreams = new ArrayList<>();
             List<OutputStream> errOutStreams = new ArrayList<>();
             // it is necessarily to read all process's inputStream from std and err or else the execution will hang.
-            if (!stdOutputs.isEmpty()) {
+            if (!stdOutputs.isEmpty() && !supressOuput) {
                 stdOutStreams = stdOutputs;
             } else {
                 stdOutStreams.add(new ByteArrayOutputStream());
             }
 
-            if (!errOutputs.isEmpty()) {
+            if (!errOutputs.isEmpty() && !supressOuput) {
                 errOutStreams = errOutputs;
             } else {
                 errOutStreams.add(new ByteArrayOutputStream());
@@ -296,6 +324,13 @@ public class WindowsCli implements ShellCli {
         @Override
         public String toString() {
             return Arrays.toString(cmd.getCmdLine());
+        }
+
+        @Override
+        public FutureExecution supressOutput() {
+            WindowsCliFutureExecution ret = new WindowsCliFutureExecution(this);
+            ret.supressOuput = true;
+            return ret;
         }
 
     }

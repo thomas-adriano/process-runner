@@ -22,5 +22,9 @@ public interface ShellCli extends AutoCloseable {
     ShellCli addStandardOutput(OutputStream dest);
 
     ShellCli addErrorOutput(OutputStream dest);
+    
+    ShellCli clearStandardOutputTargets();
+    
+    ShellCli clearErrorOutputTargets();
 }
 
