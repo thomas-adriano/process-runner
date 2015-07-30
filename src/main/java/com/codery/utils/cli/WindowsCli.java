@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -70,19 +71,34 @@ public class WindowsCli implements ShellCli {
 
     @Override
     public WindowsCli setEnvironmentVariable(String key, String value) {
-        environment.put(key, value);
+        secureEnvStore(environment, key, value);
         return this;
     }
 
     @Override
     public WindowsCli setEnvironmentVariables(Map<String, String> vars) {
-        environment.putAll(vars);
+        for (Entry<String, String> each : vars.entrySet()) {
+            secureEnvStore(environment, each.getKey(), each.getValue());
+        }
         return this;
     }
 
     @Override
     public Map<String, String> getEnvironentVariables() {
         return Collections.unmodifiableMap(environment);
+    }
+
+    private void secureEnvStore(Map<String, String> target, String key, String value) {
+        boolean found = false;
+        for (String each : target.keySet()) {
+            if (each.equalsIgnoreCase(key)) {
+                found = true;
+                target.put(each, value);
+            }
+        }
+        if (!found) {
+            target.put(key, value);
+        }
     }
 
     @Override
@@ -178,7 +194,7 @@ public class WindowsCli implements ShellCli {
             if (isClosed) {
                 throw new RuntimeException("It is not possible to execute a closed instance of " + WindowsCli.class);
             }
-            
+
             ProcessBuilder pb = setupProcessBuilder();
             Process p = null;
 
@@ -236,7 +252,11 @@ public class WindowsCli implements ShellCli {
 
         private ProcessBuilder setupProcessBuilder() {
             ProcessBuilder pb = new ProcessBuilder(cmd.getCmdLine());
-            pb.environment().putAll(environment);
+
+            for (Entry<String, String> each : environment.entrySet()) {
+                secureEnvStore(pb.environment(), each.getKey(), each.getValue());
+            }
+
             pb = pb.directory(dir);
             return pb;
         }
