@@ -264,10 +264,11 @@ public class WindowsCli implements ShellCli {
         private void startOutputStreamsWriters(InputStream stdStream, InputStream errStream) {
             List<OutputStream> stdOutStreams = new ArrayList<>();
             List<OutputStream> errOutStreams = new ArrayList<>();
-            // it is necessarily to read all process's inputStream from std and err or else the execution will hang.
+
             if (!stdOutputs.isEmpty() && !supressOuput) {
                 stdOutStreams = stdOutputs;
             } else {
+                // it is necessarily to read all process's inputStream from std and err or else the execution will hang.
                 stdOutStreams.add(new ByteArrayOutputStream());
             }
 
@@ -377,12 +378,12 @@ public class WindowsCli implements ShellCli {
             }
         }
 
+        //TODO find a way to R/W chunks (512/2014) of bytes. Byte-to-byte reading is slower. :(
         private synchronized void readInputStream() throws IOException {
-            byte[] buffer = new byte[1024];
-            while (inStream.read(buffer) != -1) {
-                byte[] processedBuffer = trimBytes(buffer);
+            int i = -1;
+            while ((i = inStream.read()) != -1) {
                 for (OutputStream out : outStreams) {
-                    out.write(processedBuffer);
+                    out.write(i);
                 }
             }
         }
